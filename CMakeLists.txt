@@ -3,4 +3,4 @@ project(GeneralizedMaximumFlow)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(GeneralizedMaximumFlow main.cpp GeneralizedMaximumFlow.hpp)
+add_executable(GeneralizedMaximumFlow src/main.cpp src/GeneralizedMaximumFlow.hpp)
