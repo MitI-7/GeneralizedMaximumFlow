@@ -17,7 +17,9 @@ int main(void) {
     }
     unsigned int source = 0;
     unsigned int sink = V - 1;
-    gmf.solve(source, sink, F);
+
+    gmf.set_node_supply(source, F);
+    gmf.solve(sink);
     cout << "flow is " << gmf.optimal_cost(sink) << endl;
     gmf.show_flow();
 
