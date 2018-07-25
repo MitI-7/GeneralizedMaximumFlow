@@ -1,6 +1,7 @@
 #include <bits/stdc++.h>
 
 
+
 class GeneralizedMaximumFlow {
     struct Edge {
         const unsigned int from;
@@ -15,9 +16,6 @@ class GeneralizedMaximumFlow {
             assert(this->from != this->to);
             assert(0 < this->cap);
             assert(0 < this->gain);
-        }
-        void print() {
-            std::cout << from << "->" << to << "(" << flow << "/" << cap << ")" << std::endl;
         }
 
     };
@@ -60,7 +58,6 @@ public:
         for (unsigned int u = 0; u < num_node; ++u) {
             if (excess.at(u) > 0 and u != sink) {
                 canceling_flow_generating_cycle(u);
-                break;
             }
         }
 
@@ -75,7 +72,7 @@ public:
         }
     }
 
-    double print_excess() {
+    double show_excess() {
         std::cout << "excess:";
         for (int i = 0; i < excess.size(); ++i) {
             std::cout << excess.at(i) << ",";
@@ -212,89 +209,118 @@ private:
     void canceling_flow_generating_cycle(const unsigned int source) {
 
         while (true) {
-            std::vector<int> prev_v(num_node, -1), prev_e(num_node, -1); // 直前の頂点と辺のidx
-            std::vector<double> distance(num_node, inf);
-            distance.at(source) = 0;
-
-            int negative_cycle_idx = -1;
-            for (int num = 0; num < num_node; ++num) {
-                bool change = false;
-                for (int u = 0; u < graph.size(); ++u) {
-                    for (int i = 0; i < graph.at(u).size(); ++i) {
-                        Edge &e = graph.at(u).at(i);
-
-                        if (distance.at(u) == inf) {
-                            continue;
-                        }
-
-                        double new_dist = distance.at(u) + e.cost + epsilon;
-                        if (e.cap - e.flow > epsilon and distance.at(e.to) > new_dist) {
-                            assert(e.cap - e.flow > 0);
-                            distance.at(e.to) = new_dist;
-                            prev_v.at(e.to) = u;
-                            prev_e.at(e.to) = i;
-                            change = true;
-
-                            if (num == num_node - 1) {
-                                negative_cycle_idx = e.to;
-                            }
-                        }
-                    }
-                }
-                if (not change) {
-                    break;
-                }
+            std::vector<std::pair<unsigned int, unsigned int>> cycle = get_flow_generating_cycle(source);
+            if (cycle.empty()) {
+                break;
             }
-
-            // 負閉路がない
-            if (negative_cycle_idx == -1) {
-                return;
-            }
-
-            // 負閉路を取得
-            int u = negative_cycle_idx;
-            std::vector<unsigned int> cycle;
-            std::vector<bool> used(num_node, false);
-            while (not used.at(u)) {
-                used.at(u) = true;
-                cycle.emplace_back(u);
-                u = prev_v.at(u);
-            }
-            negative_cycle_idx = u;
-
-            cycle.clear();
-            used.assign(num_node, false);
-            while (not used.at(u)) {
-                used.at(u) = true;
-                cycle.emplace_back(u);
-                u = prev_v.at(u);
-            }
-            assert(u == negative_cycle_idx);
 
             // alphaとlabelを算出
             double alpha = inf;
             std::vector<double> labels(num_node);
             double sum_of_gain = 0.0;
-            labels.at(cycle.at(0)) = 1.0;
-            for (unsigned int u : cycle) {
-                const auto &edge = graph.at(prev_v.at(u)).at(prev_e.at(u));
+            labels.at(cycle.at(0).first) = 1.0;
+            for (auto p : cycle) {
+                unsigned int u = p.first;
+                unsigned int e = p.second;
+
+                const auto &edge = graph.at(u).at(e);
                 sum_of_gain += log(edge.gain);
                 const double rest = edge.cap - edge.flow;
                 assert(rest > 0);
 
                 const double label = 1.0 / exp(sum_of_gain);
-                labels.at(prev_v.at(u)) = label;
+                labels.at(u) = label;
                 alpha = std::min(alpha, rest / label);
             }
             assert(alpha != 0);
 
-            for (int u : cycle) {
-                Edge &edge = graph.at(prev_v.at(u)).at(prev_e.at(u));
+            for (auto p : cycle) {
+                Edge &edge = graph.at(p.first).at(p.second);
                 push_flow(edge, alpha, labels);
             }
 
+            int u = cycle.back().first;
             excess.at(u) -= labels.at(u) * alpha;
             excess.at(u) += alpha;
+            assert(labels.at(u) * alpha < alpha);
         }
+    }
+
+    std::vector<std::pair<unsigned int, unsigned int>> get_flow_generating_cycle(const unsigned int source) {
+        std::vector<int> prev_v(num_node, -1), prev_e(num_node, -1); // 直前の頂点と辺のidx
+        std::vector<double> distance(num_node, inf);
+        distance.at(source) = 0;
+
+        std::vector<unsigned int> cycle_idx_list;
+        for (int num = 0; num < num_node; ++num) {
+            bool change = false;
+            for (unsigned int u = 0; u < graph.size(); ++u) {
+                for (unsigned int i = 0; i < graph.at(u).size(); ++i) {
+                    Edge &e = graph.at(u).at(i);
+
+                    if (distance.at(u) == inf) {
+                        continue;
+                    }
+
+                    double new_dist = distance.at(u) + e.cost + epsilon;
+                    if (e.cap - e.flow > epsilon and distance.at(e.to) > new_dist) {
+                        assert(e.cap - e.flow > 0);
+                        distance.at(e.to) = new_dist;
+                        prev_v.at(e.to) = u;
+                        prev_e.at(e.to) = i;
+                        change = true;
+
+                        if (num == num_node - 1) {
+                            cycle_idx_list.emplace_back(e.to);
+                        }
+                    }
+                }
+            }
+            if (not change) {
+                break;
+            }
+        }
+
+        // 増加閉路がない
+        if (cycle_idx_list.empty()) {
+            std::vector<std::pair<unsigned int, unsigned int>> cycle;
+            return cycle;
+        }
+
+        // 増加閉路を取得
+        std::vector<std::pair<unsigned int, unsigned int>> best_cycle;
+        double best_average_gain = inf;
+        std::vector<bool> used_index(num_node, false);
+        for (unsigned int u : cycle_idx_list) {
+            if (used_index.at(u)) {
+                continue;
+            }
+            used_index.at(u) = true;
+
+            // 最初に2回でてくるnodeを見つける
+            std::vector<bool> used(num_node, false);
+            while (not used.at(u)) {
+                used.at(u) = true;
+                u = prev_v.at(u);
+            }
+
+            std::vector<std::pair<unsigned int, unsigned int>> cycle;
+            std::fill(used.begin(), used.end(), false);
+            double average_gain = 0;
+            while (not used.at(u)) {
+                used.at(u) = true;
+                cycle.emplace_back(std::make_pair(prev_v.at(u), prev_e.at(u)));
+                average_gain += graph.at(prev_v.at(u)).at(prev_e.at(u)).cost;
+                u = prev_v.at(u);
+            }
+            average_gain /= cycle.size();
+
+            if (average_gain < best_average_gain) {
+                best_average_gain = average_gain;
+                best_cycle = cycle;
+            }
+        }
+
+        return best_cycle;
     }
 };
