@@ -16,10 +16,15 @@ class GeneralizedMaximumFlow {
             assert(0 < this->cap);
             assert(0 < this->gain);
         }
+        void print() {
+            std::cout << from << "->" << to << "(" << flow << "/" << cap << ")" << std::endl;
+        }
+
     };
 
     const unsigned int num_node;          // 頂点数
     unsigned int num_edge = 0;            // 辺数
+    double B = 0;                         // max(abs(capacity), abs(gain))
     std::vector<std::vector<Edge>> graph; // グラフの隣接リスト表現
     std::vector<double> excess;
     const double inf = std::numeric_limits<double>::max() / 3;
@@ -36,6 +41,7 @@ public:
         graph.at(from).emplace_back(Edge(from, to, 0, cap, gain, graph.at(to).size(), false));
         graph.at(to).emplace_back(Edge(to, from, cap * gain, cap * gain, 1 / gain, graph.at(from).size() - 1, true));
         num_edge++;
+        B = std::max(std::max(B, fabs(cap)), fabs(gain));
     }
 
     void set_node_supply(const unsigned int node, double flow) {
@@ -54,6 +60,7 @@ public:
         for (unsigned int u = 0; u < num_node; ++u) {
             if (excess.at(u) > 0 and u != sink) {
                 canceling_flow_generating_cycle(u);
+                break;
             }
         }
 
@@ -68,6 +75,14 @@ public:
         }
     }
 
+    double print_excess() {
+        std::cout << "excess:";
+        for (int i = 0; i < excess.size(); ++i) {
+            std::cout << excess.at(i) << ",";
+        }
+        std::cout << std::endl;
+    }
+
     // 最適解を取得
     double optimal_cost(const unsigned sink) {
         return excess.at(sink);
@@ -77,7 +92,7 @@ public:
         for(unsigned int from = 0; from < graph.size(); ++from) {
             for (auto &edge : graph.at(from)) {
                 if (not edge.is_rev) {
-                    std::cout << from << "->" << edge.to << "(" << edge.flow << ")" << std::endl;
+                    std::cout << from << "->" << edge.to << "(" << edge.flow << "/" << edge.cap << ")" << std::endl;
                 }
             }
         }
@@ -112,7 +127,7 @@ private:
                     continue;
                 }
                 for (const auto &e : graph.at(v)) {
-                    double new_cost = potential.at(v) - log(e.gain);
+                    double new_cost = potential.at(v) + e.cost;
                     if (e.cap - e.flow > epsilon and potential.at(e.to) > new_cost + epsilon) {
                         assert(e.cap - e.flow > 0);
                         potential.at(e.to) = new_cost;
@@ -213,7 +228,7 @@ private:
                         }
 
                         double new_dist = distance.at(u) + e.cost + epsilon;
-                        if (abs(e.cap - e.flow) > epsilon and distance.at(e.to) > new_dist) {
+                        if (e.cap - e.flow > epsilon and distance.at(e.to) > new_dist) {
                             assert(e.cap - e.flow > 0);
                             distance.at(e.to) = new_dist;
                             prev_v.at(e.to) = u;
@@ -278,7 +293,7 @@ private:
                 push_flow(edge, alpha, labels);
             }
 
-            excess.at(u) -= labels.at(source) * alpha;
+            excess.at(u) -= labels.at(u) * alpha;
             excess.at(u) += alpha;
         }
     }
